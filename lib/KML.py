@@ -65,7 +65,7 @@ class Schema:
 
 class Placemark(dict):
 
-	def __init__(self, schema, name="Data"):
+	def __init__(self, schema, name=""):
 		self.schema = schema
 		self.name = name
 

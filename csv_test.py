@@ -6,7 +6,9 @@ import math
 
 import lib.KML as KML
 
-EARTH_RADIUS = 6.371e6
+EARTH_RADIUS 	= 6.371e6	#meters
+MAX_BOAT_SPEED  = 228.0 / 3600 	#nautical miles per second (of fastest boat)
+MAX_BOAT_SPEED	= 100.0 / 3600  #slightly slower
 
 def parseTime(raw_csv_time):
 	try:
@@ -30,7 +32,9 @@ def pretty_time (gm_time):
 
 		
 def kml_setup():
-	global kml_output, ship_schema, ship_paths_folder
+	global kml_output
+	global ship_schema, blip_schema
+	global paths_folder, approaches_folder
 	kml_output = KML.KML()
 	
 	ship_schema = KML.Schema("Ship")
@@ -40,8 +44,13 @@ def kml_setup():
 	ship_schema.add_data("Latitude",	"float")
 	ship_schema.add_data("Longitude",	"float")
 	
+	blip_schema = KML.Schema("Blip")
+	blip_schema.add_data("Time",	 "string")
+	blip_schema.add_data("Latitude", "float")
+	blip_schema.add_data("Longitude","float")
 	
-	ship_paths_folder = KML.Folder(kml_output, "Ship Paths")
+	paths_folder = KML.Folder(kml_output, "Ship Paths")
+	approaches_folder = KML.Folder(kml_output, "Ship Approaches")
 
 
 def get_random_abgr_color ():
@@ -55,9 +64,8 @@ def get_random_abgr_color ():
 
 
 def draw_ship_path (ship):
-	global ship_paths_folder
-
-	placemark = KML.Placemark(ship_schema, ship.name)
+	folder = KML.Folder( kml_output, ship.name )
+	placemark = KML.Placemark(ship_schema, "Start")
 	placemark.put_data('VesselName'	, ship.name)
 	placemark.put_data('Time'	, ship.get_strf_time(0))
 	placemark.put_data('Epoch'	, ship.get_epoch(0))
@@ -67,7 +75,54 @@ def draw_ship_path (ship):
 	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
 	placemark.put_path( coords, get_random_abgr_color() )
 
-	ship_paths_folder.add_placemark(placemark)
+	folder.add_placemark(placemark)
+
+	#Add points along path
+	for i in range(ship.len()):
+		blip = KML.Placemark(blip_schema)
+		blip.put_data( "Time"		, ship.get_strf_time(i) )
+		blip.put_data( "Latitude"	,ship.get_lat(i) )
+		blip.put_data( "Longitude"	, ship.get_lon(i) )
+		folder.add_placemark(blip)
+
+def draw_ship_approach (approach):
+	global approaches_folder
+
+	identifier = approach[0]
+	ship1 = identifier[0]
+	index1 = identifier[1]
+	ship2 = identifier[2]
+	index2 = identifier[3]
+
+	p1 = KML.Placemark(ship_schema	, ship1.name)
+	p1.put_data('VesselName'	, ship1.name)
+	p1.put_data('Time' 		, ship1.get_strf_time(index1))
+	p1.put_data('Epoch'		, ship1.get_epoch(index1))
+	p1.put_data('Latitude'		, ship1.get_lat(index1))
+	p1.put_data('Longitude'		, ship1.get_lon(index1))
+
+	p2 = KML.Placemark(ship_schema	, ship2.name)
+	p2.put_data('VesselName'	, ship2.name)
+	p2.put_data('Time' 		, ship2.get_strf_time(index2))
+	p2.put_data('Epoch'		, ship2.get_epoch(index2))
+	p2.put_data('Latitude'		, ship2.get_lat(index2))
+	p2.put_data('Longitude'		, ship2.get_lon(index2))
+
+	coords = [ (ship1.get_lat(index1), ship1.get_lon(index1)) , (ship2.get_lat(index2),ship2.get_lon(index2)) ]
+
+	approach = KML.Placemark(ship_schema	, str.format("Approach: {:.2f}nm",approach[1][0]) )
+	approach.put_data( 'VesselName'	, ship1.name + "-" + ship2.name )
+	approach.put_data( 'Time'	, ship1.get_strf_time(index1) + " + " + ship2.get_strf_time(index2) )
+	approach.put_data( 'Epoch'	, (ship1.get_epoch(index1) + ship2.get_epoch(index2))/2 )
+	approach.put_data( 'Latitude'	, 0 )
+	approach.put_data( 'Longitude'	, 0 )
+	approach.put_path( coords	, "ffff0000" )
+
+	approaches_folder.add_placemark(p1)
+	approaches_folder.add_placemark(p2)
+	approaches_folder.add_placemark(approach)
+
+	
 	
 
 class Position:
@@ -112,6 +167,18 @@ class ShipPath:
 	def get_strf_time(self, index):
 		return pretty_time(self.path[index].time)
 
+	def jump_sec (self, index, seconds):
+		#Constrain output to less than self.len()
+		if index+1 >= self.len():
+			return self.len()-1
+
+		start = self.get_epoch(index)
+		while self.get_epoch(index+1) - start < seconds:
+			index += 1
+			if index == self.len()-1:
+				break
+		return index
+
 	def distance_nm(self, index1, ship2, index2, speed=False):
 		lat1 = math.radians(self.get_lat(index1))
 		lon1 = math.radians(self.get_lon(index1))
@@ -149,7 +216,6 @@ def get_ship(ships, name):
 def compare_ships(ship1, ship2):
 	approaches = []
 
-
 	#Start with first ship at first position
 	index1 = 0
 	index2 = 0
@@ -185,11 +251,16 @@ def compare_ships(ship1, ship2):
 					index1 += 1
 				else:
 					index2 += 1
-			if index1 >= ship1.len() or index2 >= ship2.len():
-				#Closest the ships will get in time
+
+			#Closest the ships will get in time
+			if index1 >= ship1.len():
+				index1 = ship1.len()-1
+				break
+			if index2 >= ship2.len():
+				index2 = ship2.len()-1
 				break
 
-		distance = 1000000000 #Shortest distance between vessels at time
+		distance = 25 #Shortest distance between vessels at time
 		identifier = (ship1,index1,ship2,index2) #Reference for source of approach
 		#Scan through points measuring distances
 		while True:
@@ -197,6 +268,14 @@ def compare_ships(ship1, ship2):
 			if dist < distance:
 				distance = dist
 				identifier = (ship1, index1, ship2, index2)
+
+			#print str(dist)+'nm'
+			if dist > 30: #If the boats are more than 30 nm away
+				gap = dist - 20
+				time_jump = gap/MAX_BOAT_SPEED/2
+				#print "Jumping forward "+str(int(time_jump))+" seconds"
+				index1 = ship1.jump_sec(index1, time_jump)
+				index2 = ship2.jump_sec(index2, time_jump)
 			
 			epoch1 = ship1.get_epoch(index1)
 			epoch2 = ship2.get_epoch(index2)
@@ -211,9 +290,10 @@ def compare_ships(ship1, ship2):
 				time_jump	= (ship1.get_epoch(index1)-epoch1 > 3000) or (ship2.get_epoch(index2)-epoch2 > 3000)
 
 			if end_of_path or time_jump:
-				locations = ( distance, ship1.get_lat(identifier[1]), ship1.get_lon(identifier[1]), ship2.get_lat(identifier[3]), ship2.get_lon(identifier[3]) )
-				approaches.append ( (identifier, locations) )
-				distance = 1000000000
+				if distance < 25:
+					locations = ( distance, ship1.get_lat(identifier[1]), ship1.get_lon(identifier[1]), ship2.get_lat(identifier[3]), ship2.get_lon(identifier[3]) )
+					approaches.append ( (identifier, locations) )
+					distance = 25
 
 			if index1 >= ship1.len() or index2 >= ship2.len():
 				#Closest the ships will get in time
@@ -225,6 +305,7 @@ def compare_ships(ship1, ship2):
 	for approach in approaches:
 		print str.format( "-------Approach between {}:{} and {}:{}", approach[0][0].name, approach[0][1], approach[0][2].name, approach[0][3] )
 		print str.format( "({},{}) and ({},{}) == {:.2f}nm", approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] )
+		draw_ship_approach(approach)
 			
 
 #Setup KML output
@@ -235,6 +316,8 @@ ships = []
 
 csv_file = open('../resources/AIS_Data.csv')
 reader = csv.reader(csv_file, delimiter=',')
+
+unnamed_index = 0
 
 time_start = time.time()
 index = 0
@@ -253,6 +336,10 @@ for row in reader:
 	raw_time = row[1]
 	lat = row[2]
 	lon = row[3]
+
+	if name == "":
+		name = "Unnamed_"+str(unnamed_index)
+		unnamed_index += 1
 
 	position = Position(raw_time, lat, lon)
 	get_ship(ships, name).add_point(position)
@@ -275,7 +362,9 @@ pathc = sum([ships[i].len() for i in range(len(ships))])
 print str.format("{} vessels : {} markers", shipc, pathc)
 print "\n"
 
-compare_ships(ships[3],ships[6])
+for i in range(len(ships)):
+	for j in range(i+1, len(ships)):
+		compare_ships(ships[i],ships[6])
 
 for ship in ships:
 	draw_ship_path(ship)
