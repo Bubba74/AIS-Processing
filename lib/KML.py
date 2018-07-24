@@ -3,7 +3,10 @@
 
 class KML:
 
-	def __init__(self):
+	def __init__(self, doc_name=""):
+
+		self.name = doc_name
+
 		self.schemas = []
 		self.folders = []
 
@@ -14,6 +17,9 @@ class KML:
 		out.write('<?xml version="1.0" encoding="utf-8" ?>\n')
 		out.write('<kml xmlns="http://www.opengis.net/kml/2.2">\n')
 		out.write('<Document id="root_doc">\n')
+
+		if self.name != "":
+			out.write(' <name>'+self.name+'</name>\n')
 
 		for schema in self.schemas:
 			out.write(str(schema))
