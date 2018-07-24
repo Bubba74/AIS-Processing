@@ -12,6 +12,7 @@ MAX_BOAT_SPEED  = 228.0 / 3600 	#nautical miles per second (of fastest boat)
 MAX_BOAT_SPEED	= 100.0 / 3600  #slightly slower
 
 BLIP_ICON = "https://cdn4.iconfinder.com/data/icons/6x16-free-application-icons/16/Target.png"
+#BLIP_ICON = "http://asset-a.soupcdn.com/asset/0897/8622_a476_32-square.png"
 
 def parseTime(raw_csv_time):
 	try:
@@ -83,13 +84,25 @@ def draw_ship_path (ship):
 	placemark.put_data('Longitude'	, ship.get_lon(0))
 
 	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
-	placemark.put_path( coords, get_random_abgr_color() )
+	color = get_random_abgr_color()
+	placemark.put_path( coords, color)
 
 	folder.add_placemark(placemark)
 
+
+
 	#Add points along path
 	for i in range(ship.len()):
-		blip = KML.Placemark(blip_schema, scale=0.2, icon=BLIP_ICON)
+		#Set the color of the icon based on its day of the month
+		ship_time = ship.get_time(i)
+		minutes_of_month = ship_time[2]*60*24 + ship_time[3]*60 + ship_time[4]
+		max_minutes_of_month = 1.0* 32*24*60 #32 days of 24 hours of 60 minutes
+		prop_progress = (minutes_of_month+0.0) / max_minutes_of_month
+		hex_cap = 16**2
+		suffix = int(prop_progress*hex_cap)
+		color = "ff"+(3*hex(suffix)[2:])
+
+		blip = KML.Placemark(blip_schema, scale=0.2, icon=BLIP_ICON, color=color)
 		blip.put_data( "Time"		, ship.get_strf_time(i) )
 		blip.put_data( "Latitude"	,ship.get_lat(i) )
 		blip.put_data( "Longitude"	, ship.get_lon(i) )
