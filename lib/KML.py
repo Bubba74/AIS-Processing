@@ -65,9 +65,10 @@ class Schema:
 
 class Placemark(dict):
 
-	def __init__(self, schema, name="", scale=1, icon="default", visibility=1):
+	def __init__(self, schema, name="", color="", scale=1, icon="default", visibility=1):
 		self.schema = schema
 		self.name = name
+		self.color = color
 		self.scale = scale
 		self.icon = icon
 		self.visibility = visibility
@@ -89,17 +90,22 @@ class Placemark(dict):
 		if self.visibility == 0:
 			out += str.format('<visibility>{}</visibility>\n', self.visibility)
 
-		if self.scale != 1 or self.icon != "default":
-			out += '  <Style><IconStyle>'
+		out += '  <Style>\n'
+		if self.color != "" or self.scale != 1 or self.icon != "default":
+			out += '  <IconStyle>'
+			if self.color != "":
+				out += str.format('<color>{}</color>' , self.color)
 			if self.scale != 1:
 				out += str.format('<scale>{}</scale>' , self.scale)
 			if self.icon != "default":
 				out += str.format('<Icon><href>{}</href></Icon>', self.icon)
-			out += '</IconStyle></Style>\n'
+			out += '</IconStyle>\n'
 
 		#Set line style for drawing a path
 		if hasattr(self, 'line_path'):
-			out += str.format('  <Style><LineStyle><width>{}</width><color>{}</color></LineStyle></Style>\n', self.line_width, self.line_color )
+			out += str.format('    <LineStyle><width>{}</width><color>{}</color></LineStyle>\n', self.line_width, self.line_color )
+		
+		out += '  </Style>\n'
 
 		#Opening header for text data
 		out += str.format('  <ExtendedData><SchemaData schemaUrl="#{}">\n', self.schema.id )
