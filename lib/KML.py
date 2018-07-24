@@ -10,7 +10,6 @@ class KML:
 		self.schemas = []
 		self.folders = []
 
-		loose = Folder(self, 'Loose')
 
 	def write_to_file(self, filename='output.kml'):
 		out = open(filename, 'w')
@@ -31,12 +30,6 @@ class KML:
 		out.write('</Document></kml>\n')
 		out.flush()
 		out.close()
-
-	def add_loose_placemark(self, placemark):
-		if placemark.schema not in self.schemas:
-			self.schemas.append(placemark.schema)
-
-		self.folders[0].append(placemark)
 
 	def add_schema (self, schema):
 		self.schemas.append(schema)
