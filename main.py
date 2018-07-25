@@ -39,7 +39,7 @@ def kml_setup():
 	global kml_output
 	global ship_schema, blip_schema, approach_schema
 	global paths_folder, approaches_folder
-	kml_output = KML.KML()
+	kml_output = KML.KML(doc_name="AIS_Bering_Strait")
 	
 	ship_schema = KML.Schema("Ship")
 	ship_schema.add_data("VesselName",	"string")
@@ -93,15 +93,7 @@ def draw_ship_path (ship):
 
 	#Add points along path
 	for i in range(ship.len()):
-		#Set the color of the icon based on its day of the month
-		ship_time = ship.get_time(i)
-		minutes_of_month = ship_time[2]*60*24 + ship_time[3]*60 + ship_time[4]
-		max_minutes_of_month = 1.0* 32*24*60 #32 days of 24 hours of 60 minutes
-		prop_progress = (minutes_of_month+0.0) / max_minutes_of_month
-		hex_cap = 16**2
-		suffix = int(prop_progress*hex_cap)
-		color = "ff"+(3*hex(suffix)[2:])
-
+		#Set the color of the icon based on the color of the path
 		blip = KML.Placemark(blip_schema, scale=0.2, icon=BLIP_ICON, color=color)
 		blip.put_data( "Time"		, ship.get_strf_time(i) )
 		blip.put_data( "Latitude"	,ship.get_lat(i) )
