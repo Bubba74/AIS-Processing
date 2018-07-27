@@ -322,16 +322,33 @@ def compare_ships(ship1, ship2):
 	for approach in approaches:
 		print str.format( "-------Approach between {}:{} and {}:{}", approach[0][0].name, approach[0][1], approach[0][2].name, approach[0][3] )
 		print str.format( "({},{}) and ({},{}) == {:.2f}nm", approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] )
-		draw_ship_approach(approach)
+		#draw_ship_approach(approach)
+
+def colregs ():
+	#ships -- Array of ships, where each holds its sorted list of timestamps+lat/lon coordinates
+
+
+	print ', '.join({ship.name for ship in ships})
+
+	shipc = len(ships)
+	pathc = sum([ships[i].len() for i in range(len(ships))])
+	
+	print str.format("{} vessels : {} markers", shipc, pathc)
+	print "\n"
+	
+	for i in range(len(ships)):
+		for j in range(i+1, len(ships)):
+			compare_ships(ships[i],ships[j])
+	
 			
 
 #Setup KML output
-kml_setup()
+#kml_setup()
 
 ships = []
 
 
-csv_file = open('../AIS_Data.csv')
+csv_file = open('../AIS_2016_01_Zone11.csv')
 reader = csv.reader(csv_file, delimiter=',')
 
 unnamed_index = 0
@@ -369,24 +386,12 @@ for row in reader:
 
 print_progress(time_start, index)
 
-for ship in ships:
-	print ship
-	print
 
-shipc = len(ships)
-pathc = sum([ships[i].len() for i in range(len(ships))])
 
-print str.format("{} vessels : {} markers", shipc, pathc)
-print "\n"
+#for ship in ships:
+	#draw_ship_path(ship)
 
-for i in range(len(ships)):
-	for j in range(i+1, len(ships)):
-		compare_ships(ships[i],ships[j])
-
-for ship in ships:
-	draw_ship_path(ship)
-
-kml_output.write_to_file('AIS_Processing.kml')
+#kml_output.write_to_file('AIS_Processing.kml')
 csv_file.close()
 
 
