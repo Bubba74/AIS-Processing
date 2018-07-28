@@ -14,6 +14,13 @@ MAX_BOAT_SPEED	= 100.0 / 3600  #slightly slower
 BLIP_ICON = "https://cdn4.iconfinder.com/data/icons/6x16-free-application-icons/16/Target.png"
 #BLIP_ICON = "http://asset-a.soupcdn.com/asset/0897/8622_a476_32-square.png"
 
+class Segment
+	SECONDS = 1
+	MINUTES = 60 * Segment.SECONDS
+	HOURS   = 60 * Segment.MINUTES
+	DAYS    = 24 * Segment.HOURS
+	WEEKS   = 7  * Segment.DAYS
+
 def parseTime(raw_csv_time):
 	try:
 		year 	= int(raw_csv_time[0:4])
@@ -324,10 +331,7 @@ def compare_ships(ship1, ship2):
 		print str.format( "({},{}) and ({},{}) == {:.2f}nm", approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] )
 		#draw_ship_approach(approach)
 
-def colregs ():
-	#ships -- Array of ships, where each holds its sorted list of timestamps+lat/lon coordinates
-
-
+def colregs (ships):
 	print ', '.join({ship.name for ship in ships})
 
 	shipc = len(ships)
@@ -339,8 +343,53 @@ def colregs ():
 	for i in range(len(ships)):
 		for j in range(i+1, len(ships)):
 			compare_ships(ships[i],ships[j])
-	
+
+#Load the global variables 'ships' with all the AIS blips in a time segment
+def load_ships (start_index, end_index, start_time, end_time):
+	global ships
+	with open('../AIS_2016_01_Zone11.csv') as f:
+		blankc
+		index = 0
+		for line in f:
+			#Skip to the index of the first line that fits this time slot
+			if index < start_index:
+				index += 1
+				continue
+
+			#Stop after last fitting timemark
+			if index > end_index:
+				break
+
+			segs 	= line.split(',')
+
+			#Disregard stationary points
+			status = segs[11]
+			if status == "at anchor":
+				continue
+
+			#Check time
+			time 	= segs[1]
+			day 	= int(time[8:10])
+			hour 	= int(time[11:13])
+			minute 	= int(time[14:16])
+			second 	= int(time[17:19])
+			epoch	= day*Segment.DAYS + hour*Segment.HOURS + minute*Segment.MINUTES + second+Segment.SECONDS
+			if epoch < start_time or end_time < epoch:
+				continue
+
+			name = row[7]
+			lat = row[2]
+			lon = row[3]
 			
+			if name == "":
+				name = "Unnamed_"+str(blankc)
+				blankc += 1
+
+			position = Position(time, lat, lon)
+			get_ship(ships, name).add_point(position)
+			
+		
+
 
 #Setup KML output
 #kml_setup()
@@ -349,6 +398,22 @@ ships = []
 
 
 csv_file = open('../AIS_2016_01_Zone11.csv')
+
+segment_period = 24*Segment.HOURS
+segment_length = 25*Segment.HOURS
+segment_start  = 0
+
+segment_bounds = {}
+
+
+
+
+
+
+
+
+
+
 reader = csv.reader(csv_file, delimiter=',')
 
 unnamed_index = 0
@@ -361,22 +426,9 @@ for row in reader:
 		index += 1
 		continue
 
-	#Disregard stationary points
-	status = row[11]
-	if status == "at anchor":
-		continue
+	time = row[1]
 
-	name = row[7]
-	raw_time = row[1]
-	lat = row[2]
-	lon = row[3]
 
-	if name == "":
-		name = "Unnamed_"+str(unnamed_index)
-		unnamed_index += 1
-
-	position = Position(raw_time, lat, lon)
-	get_ship(ships, name).add_point(position)
 
 	index += 1
 	if index % block_size == 0:
