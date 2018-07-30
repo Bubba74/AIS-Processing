@@ -2,10 +2,16 @@ import csv	#For parsing AIS.csv input
 import time	#Timing and ship time time_struct manipulations
 import sys	#For sys.stdout.write continuous printing
 
+#For KML Output
+from fastkml.kml import KML, Document, Folder, Placemark, Schema
+from fastkml import IconStyle, LineStyle
+from shapely.geometry import Point, LineString
+from fastkml.geometry import GeometryCollection
+
 import random	#For creating unique colors for ship paths
 import math	#Lat/lon distance calculations for ships
 
-import lib.KML as KML	#For KML output using Folders, Schema, and Placemarks
+
 
 EARTH_RADIUS 	= 6.371e6	#meters
 MAX_BOAT_SPEED  = 228.0 / 3600 	#nautical miles per second (of fastest boat)
@@ -36,32 +42,45 @@ def pretty_time (gm_time):
 
 		
 def kml_setup():
-	global kml_output
+	global kml_file, kml_doc
 	global ship_schema, blip_schema, approach_schema
-	global paths_folder, approaches_folder
-	kml_output = KML.KML(doc_name="AIS_Bering_Strait")
-	
-	ship_schema = KML.Schema("Ship")
-	ship_schema.add_data("VesselName",	"string")
-	ship_schema.add_data("Time",	"string")
-	ship_schema.add_data("Epoch",	"int")
-	ship_schema.add_data("Latitude",	"float")
-	ship_schema.add_data("Longitude",	"float")
-	
-	blip_schema = KML.Schema("Blip")
-	blip_schema.add_data("Time",	 "string")
-	blip_schema.add_data("Latitude", "float")
-	blip_schema.add_data("Longitude","float")
+	global paths_folder, blips_folder, approaches_folder
 
-	approach_schema = KML.Schema("Approach")
-	approach_schema.add_data("Distance",	"string")
-	approach_schema.add_data("Vessel1",		"string")
-	approach_schema.add_data("Vessel2",		"string")
-	approach_schema.add_data("Time1",		"string")
-	approach_schema.add_data("Time2",		"string")
+	kml_file = KML() # Root KML object
+	kml_doc = Document(name="AIS_Output")
 	
-	paths_folder = KML.Folder(kml_output, "Ship Paths")
-	approaches_folder = KML.Folder(kml_output, "Ship Approaches")
+	ship_schema = Schema(id="Ship")
+	ship_schema.append("string", "VesselName")
+	ship_schema.append("string", "Time")
+	ship_schema.append("float",  "Latitude")
+	ship_schema.append("float",  "Longitude")
+
+	blip_schema = Schema(id="Blip")
+	blip_schema.append("string", "Time")
+	blip_schema.append("float",  "Latitude")
+	blip_schema.append("float",  "Longitude")
+
+	approach_schema = Schema(id="Approach")
+	approach_schema.append("string", "Distance")
+	approach_schema.append("string", "Vessel1")
+	approach_schema.append("string", "Vessel2")
+	approach_schema.append("string", "Time1")
+	approach_schema.append("string", "Time2")
+	
+	paths_folder = Folder(name="Ship Paths")
+	paths_folder.visibility = 0
+	blips_folder = Folder(name="Ship Blips")
+	blips_folder.visibility = 0
+	approaches_folder = Folder(name="Ship Approaches")
+
+	#Append schema to kml doc
+	kml_doc.append(ship_schema)
+	kml_doc.append(blip_schema)
+	kml_doc.append(approach_schema)
+
+	#Append folders to kml doc
+	kml_doc.append(paths_folder)
+	kml_doc.append(approaches_folder)
 
 
 def get_random_abgr_color ():
@@ -75,30 +94,49 @@ def get_random_abgr_color ():
 
 
 def draw_ship_path (ship):
-	folder = KML.Folder( paths_folder, ship.name, visibility=0 )
-	placemark = KML.Placemark(ship_schema, "Start", scale=0.5)
-	placemark.put_data('VesselName'	, ship.name)
-	placemark.put_data('Time'	, ship.get_strf_time(0))
-	placemark.put_data('Epoch'	, ship.get_epoch(0))
-	placemark.put_data('Latitude'	, ship.get_lat(0))
-	placemark.put_data('Longitude'	, ship.get_lon(0))
-
-	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
 	color = get_random_abgr_color()
+
+	blip_folder = Folder( name=ship.name)
+	blip_folder.visibility = 0
+	blips_folder.append(folder)
+
+	#Text box info
+	data = SchemaData (schema_url="#Ship")
+	data.append_data('VesselName'	, ship.name)
+	data.append_data('Time'		, ship.get_strf_time(0))
+	data.append_data('Epoch'	, ship.get_epoch(0))
+	data.append_data('Latitude'	, ship.get_lat(0))
+	data.append_data('Longitude'	, ship.get_lon(0))
+
+	#Geometry
+	placemark.geometry = Point(ship.get_lon(0), ship.get_lat(0))
+	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
 	placemark.put_path( coords, color)
 
-	folder.add_placemark(placemark)
+	#Placemark
+	placemark = Placemark(name=ship.name)
+	placemark.visibility = 0
+	placemark.append_style(IconStyle(scale=0.5, icon_href=BLIP_ICON))
+	placemark.append(data)
 
 
+	paths_folder.append(placemark)
 
 	#Add points along path
 	for i in range(ship.len()):
 		#Set the color of the icon based on the color of the path
-		blip = KML.Placemark(blip_schema, scale=0.2, icon=BLIP_ICON, color=color)
-		blip.put_data( "Time"		, ship.get_strf_time(i) )
-		blip.put_data( "Latitude"	,ship.get_lat(i) )
-		blip.put_data( "Longitude"	, ship.get_lon(i) )
-		folder.add_placemark(blip)
+		#Scale=0.2, icon=BLIP_ICON, color=color
+
+		data = SchemaData (schema_url="#Blip")
+		data.append_data( "Time"	, ship.get_strf_time(i) )
+		data.append_data( "Latitude"	, ship.get_lat(i) )
+		data.append_data( "Longitude"	, ship.get_lon(i) )
+		
+		blip = Placemark()
+		blip.append_style(IconStyle(color=color, scale=0.2, icon_href=BLIP_ICON))
+		blip.append(data)
+
+		blip_folder.add_placemark(blip)
 
 def draw_ship_approach (approach):
 	global approaches_folder
@@ -109,19 +147,26 @@ def draw_ship_approach (approach):
 	ship2 = identifier[2]
 	index2 = identifier[3]
 
-	p1 = KML.Placemark(ship_schema	, ship1.name)
-	p1.put_data('VesselName'	, ship1.name)
-	p1.put_data('Time' 		, ship1.get_strf_time(index1))
-	p1.put_data('Epoch'		, ship1.get_epoch(index1))
-	p1.put_data('Latitude'		, ship1.get_lat(index1))
-	p1.put_data('Longitude'		, ship1.get_lon(index1))
+	data = SchemaData(schema_url="#Ship")
+	data.append_data('VesselName'	, ship1.name)
+	data.append_data('Time' 	, ship1.get_strf_time(index1))
+	data.append_data('Latitude'	, ship1.get_lat(index1))
+	data.append_data('Longitude'	, ship1.get_lon(index1))
+	
+	p1 = Placemark(name=ship1.name)
+	p1.append(data)
+	p1.append_style(IconStyle(scale=0.3, color="ffffffff"))
 
-	p2 = KML.Placemark(ship_schema	, ship2.name)
-	p2.put_data('VesselName'	, ship2.name)
-	p2.put_data('Time' 		, ship2.get_strf_time(index2))
-	p2.put_data('Epoch'		, ship2.get_epoch(index2))
-	p2.put_data('Latitude'		, ship2.get_lat(index2))
-	p2.put_data('Longitude'		, ship2.get_lon(index2))
+
+	data = SchemaData(schema_url="#Ship")
+	data.append_data('VesselName'	, ship2.name)
+	data.append_data('Time' 	, ship2.get_strf_time(index1))
+	data.append_data('Latitude'	, ship2.get_lat(index1))
+	data.append_data('Longitude'	, ship2.get_lon(index1))
+
+	p2 = KML.Placemark(ship2.name)
+	p2.append(data)
+	p2.append_style(IconStyle(scale=0.3, color="ffffffff"))
 
 	coords = [ (ship1.get_lat(index1), ship1.get_lon(index1)) , (ship2.get_lat(index2),ship2.get_lon(index2)) ]
 
