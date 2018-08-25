@@ -3,9 +3,9 @@ import time	#Timing and ship time time_struct manipulations
 import sys	#For sys.stdout.write continuous printing
 
 #For KML Output
-from fastkml.kml import KML, Document, Folder, Placemark, Schema
+from fastkml.kml import KML, Document, Folder, Placemark, Schema, SchemaData
 from fastkml import IconStyle, LineStyle
-from shapely.geometry import Point, LineString
+from pygeoif.geometry import Point, LineString
 from fastkml.geometry import GeometryCollection
 
 import random	#For creating unique colors for ship paths
@@ -74,9 +74,9 @@ def kml_setup():
 	approaches_folder = Folder(name="Ship Approaches")
 
 	#Append schema to kml doc
-	kml_doc.append(ship_schema)
-	kml_doc.append(blip_schema)
-	kml_doc.append(approach_schema)
+	kml_doc.append_schema(ship_schema)
+	kml_doc.append_schema(blip_schema)
+	kml_doc.append_schema(approach_schema)
 
 	#Append folders to kml doc
 	kml_doc.append(paths_folder)
@@ -147,6 +147,8 @@ def draw_ship_approach (approach):
 	ship2 = identifier[2]
 	index2 = identifier[3]
 
+
+	# --  Marker for first ship -- #
 	data = SchemaData(schema_url="#Ship")
 	data.append_data('VesselName'	, ship1.name)
 	data.append_data('Time' 	, ship1.get_strf_time(index1))
@@ -154,35 +156,39 @@ def draw_ship_approach (approach):
 	data.append_data('Longitude'	, ship1.get_lon(index1))
 	
 	p1 = Placemark(name=ship1.name)
-	p1.append(data)
+	p1.extended_data = data
 	p1.append_style(IconStyle(scale=0.3, color="ffffffff"))
 
-
+	# --  Marker for second ship -- #
 	data = SchemaData(schema_url="#Ship")
 	data.append_data('VesselName'	, ship2.name)
 	data.append_data('Time' 	, ship2.get_strf_time(index1))
 	data.append_data('Latitude'	, ship2.get_lat(index1))
 	data.append_data('Longitude'	, ship2.get_lon(index1))
 
-	p2 = KML.Placemark(ship2.name)
-	p2.append(data)
+	p2 = Placemark(ship2.name)
+	p2.extended_data = data
 	p2.append_style(IconStyle(scale=0.3, color="ffffffff"))
 
+	# --  Marker for third ship -- #
+	#Paired lat/lon coordinates denoting connection between ships
 	coords = [ (ship1.get_lat(index1), ship1.get_lon(index1)) , (ship2.get_lat(index2),ship2.get_lon(index2)) ]
 
-	p_approach = KML.Placemark( approach_schema, str.format("Approach: {:.2f}nm",approach[1][0]) )
-	p_approach.put_data( 'Distance'	, str.format('{:.2f}nm' , approach[1][0]) )
-	p_approach.put_data( 'Vessel1'	, ship1.name )
-	p_approach.put_data( 'Vessel2'	, ship2.name )
-	p_approach.put_data( 'Time1'	, ship1.get_strf_time(index1) )
-	p_approach.put_data( 'Time2'	, ship2.get_strf_time(index2) )
-	p_approach.put_path( coords	, "ffff0000", width=2)
-
-	approaches_folder.add_placemark(p1)
-	approaches_folder.add_placemark(p2)
-	approaches_folder.add_placemark(p_approach)
-
+	data = SchemaData(schema_url='#Approach')
+	data.append_data('Distance'	, str.format('{:.2f}nm' , approach[1][0]) )
+	data.append_data('Vessel1'	, ship1.name )
+	data.append_data('Vessel2'	, ship2.name )
+	data.append_data('Time1'	, ship1.get_strf_time(index1) )
+	data.append_data('Time2'	, ship2.get_strf_time(index2) )
 	
+	p_approach = Placemark( str.format('{} - {}' , ship1.name , ship2.name ))
+	p_approach.extended_data = data
+	p_approach.append_style(IconStyle(scale=0.4, color="ffffffff"))
+	p_approach.geometry = LineString( coords )
+
+	approaches_folder.append(p1)
+	approaches_folder.append(p2)
+	approaches_folder.append(p_approach)
 	
 
 class Position:
@@ -376,7 +382,7 @@ kml_setup()
 ships = []
 
 
-csv_file = open('../resources/AIS_Data.csv')
+csv_file = open('../AIS_Data.csv')
 reader = csv.reader(csv_file, delimiter=',')
 
 unnamed_index = 0
