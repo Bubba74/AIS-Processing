@@ -4,9 +4,8 @@ import sys	#For sys.stdout.write continuous printing
 
 #For KML Output
 from fastkml.kml import KML, Document, Folder, Placemark, Schema, SchemaData
-from fastkml import IconStyle, LineStyle
-from pygeoif.geometry import Point, LineString
-from fastkml.geometry import GeometryCollection
+from fastkml import Style, IconStyle, LineStyle
+from pygeoif.geometry import Point, LineString, GeometryCollection
 
 import random	#For creating unique colors for ship paths
 import math	#Lat/lon distance calculations for ships
@@ -48,6 +47,7 @@ def kml_setup():
 
 	kml_file = KML() # Root KML object
 	kml_doc = Document(name="AIS_Output")
+	kml_file.append(kml_doc)
 	
 	ship_schema = Schema(id="Ship")
 	ship_schema.append("string", "VesselName")
@@ -98,9 +98,9 @@ def draw_ship_path (ship):
 
 	blip_folder = Folder( name=ship.name)
 	blip_folder.visibility = 0
-	blips_folder.append(folder)
+	blips_folder.append(blip_folder)
 
-	#Text box info
+	# Text box info
 	data = SchemaData (schema_url="#Ship")
 	data.append_data('VesselName'	, ship.name)
 	data.append_data('Time'		, ship.get_strf_time(0))
@@ -108,19 +108,24 @@ def draw_ship_path (ship):
 	data.append_data('Latitude'	, ship.get_lat(0))
 	data.append_data('Longitude'	, ship.get_lon(0))
 
-	#Geometry
-	placemark.geometry = Point(ship.get_lon(0), ship.get_lat(0))
+	# Geometry
 	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
-	placemark.put_path( coords, color)
+	path_line = LineString(coordinates=coords)
+	start_point = Point(ship.get_lon(0), ship.get_lat(0))
+	geo_combo = GeometryCollection( ([path_line, start_point]) )
 
-	#Placemark
-	placemark = Placemark(name=ship.name)
-	placemark.visibility = 0
-	placemark.append_style(IconStyle(scale=0.5, icon_href=BLIP_ICON))
-	placemark.append(data)
+	# Style
+	icon = IconStyle( scale=0.5, icon_href=BLIP_ICON )
+	style = Style( styles=[icon] )
+	
+	path = Placemark(name=ship.name)	# Create placemark
+	path.visibility = 0			# Don't show all paths by default
+	path.extended_data = data		# Add descriptive data for the ship
+	path.geometry = geo_combo		# Attach geometry: start point + line path
+	path.append_style(style)		# Decrease size of icon
 
 
-	paths_folder.append(placemark)
+	paths_folder.append(path)
 
 	#Add points along path
 	for i in range(ship.len()):
@@ -133,10 +138,10 @@ def draw_ship_path (ship):
 		data.append_data( "Longitude"	, ship.get_lon(i) )
 		
 		blip = Placemark()
-		blip.append_style(IconStyle(color=color, scale=0.2, icon_href=BLIP_ICON))
-		blip.append(data)
+		blip.append_style(Style(styles=[IconStyle(color=color, scale=0.2, icon_href=BLIP_ICON)]))
+		blip.extended_data = data
 
-		blip_folder.add_placemark(blip)
+		blip_folder.append(blip)
 
 def draw_ship_approach (approach):
 	global approaches_folder
@@ -157,18 +162,18 @@ def draw_ship_approach (approach):
 	
 	p1 = Placemark(name=ship1.name)
 	p1.extended_data = data
-	p1.append_style(IconStyle(scale=0.3, color="ffffffff"))
+	p1.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
 
 	# --  Marker for second ship -- #
 	data = SchemaData(schema_url="#Ship")
 	data.append_data('VesselName'	, ship2.name)
-	data.append_data('Time' 	, ship2.get_strf_time(index1))
-	data.append_data('Latitude'	, ship2.get_lat(index1))
-	data.append_data('Longitude'	, ship2.get_lon(index1))
+	data.append_data('Time' 	, ship2.get_strf_time(index2))
+	data.append_data('Latitude'	, ship2.get_lat(index2))
+	data.append_data('Longitude'	, ship2.get_lon(index2))
 
 	p2 = Placemark(ship2.name)
 	p2.extended_data = data
-	p2.append_style(IconStyle(scale=0.3, color="ffffffff"))
+	p2.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
 
 	# --  Marker for third ship -- #
 	#Paired lat/lon coordinates denoting connection between ships
@@ -183,7 +188,7 @@ def draw_ship_approach (approach):
 	
 	p_approach = Placemark( str.format('{} - {}' , ship1.name , ship2.name ))
 	p_approach.extended_data = data
-	p_approach.append_style(IconStyle(scale=0.4, color="ffffffff"))
+	p_approach.append_style(Style(styles=[IconStyle(scale=0.4, color="ffffffff")]))
 	p_approach.geometry = LineString( coords )
 
 	approaches_folder.append(p1)
@@ -417,6 +422,7 @@ for row in reader:
 		print_progress(time_start, index)
 		if index // block_size >= 10:
 			block_size *= 10
+csv_file.close() # Free data file resources
 
 print_progress(time_start, index)
 
@@ -437,8 +443,9 @@ for i in range(len(ships)):
 for ship in ships:
 	draw_ship_path(ship)
 
-kml_output.write_to_file('AIS_Processing.kml')
-csv_file.close()
+fout = open('AIS_Processing.kml', 'w')
+fout.write(kml_file.to_string())
+fout.close()
 
 
 print str.format("Program finished in {:.2f} seconds.", time.time()-time_start)
