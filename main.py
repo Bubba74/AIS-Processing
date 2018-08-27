@@ -52,13 +52,13 @@ def kml_setup():
 	ship_schema = Schema(id="Ship")
 	ship_schema.append("string", "VesselName")
 	ship_schema.append("string", "Time")
-	ship_schema.append("float",  "Latitude")
-	ship_schema.append("float",  "Longitude")
+	ship_schema.append("string",  "Latitude")
+	ship_schema.append("string",  "Longitude")
 
 	blip_schema = Schema(id="Blip")
 	blip_schema.append("string", "Time")
-	blip_schema.append("float",  "Latitude")
-	blip_schema.append("float",  "Longitude")
+	blip_schema.append("string",  "Latitude")
+	blip_schema.append("string",  "Longitude")
 
 	approach_schema = Schema(id="Approach")
 	approach_schema.append("string", "Distance")
@@ -120,7 +120,7 @@ def draw_ship_path (ship):
 	
 	path = Placemark(name=ship.name)	# Create placemark
 	path.visibility = 0			# Don't show all paths by default
-	path.extended_data = data		# Add descriptive data for the ship
+	#path.extended_data = data		# Add descriptive data for the ship
 	path.geometry = geo_combo		# Attach geometry: start point + line path
 	path.append_style(style)		# Decrease size of icon
 
@@ -139,7 +139,7 @@ def draw_ship_path (ship):
 		
 		blip = Placemark()
 		blip.append_style(Style(styles=[IconStyle(color=color, scale=0.2, icon_href=BLIP_ICON)]))
-		blip.extended_data = data
+		#blip.extended_data = data
 
 		blip_folder.append(blip)
 
@@ -161,7 +161,7 @@ def draw_ship_approach (approach):
 	data.append_data('Longitude'	, ship1.get_lon(index1))
 	
 	p1 = Placemark(name=ship1.name)
-	p1.extended_data = data
+	#p1.extended_data = data
 	p1.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
 
 	# --  Marker for second ship -- #
@@ -172,7 +172,7 @@ def draw_ship_approach (approach):
 	data.append_data('Longitude'	, ship2.get_lon(index2))
 
 	p2 = Placemark(ship2.name)
-	p2.extended_data = data
+	#p2.extended_data = data
 	p2.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
 
 	# --  Marker for third ship -- #
@@ -187,7 +187,7 @@ def draw_ship_approach (approach):
 	data.append_data('Time2'	, ship2.get_strf_time(index2) )
 	
 	p_approach = Placemark( str.format('{} - {}' , ship1.name , ship2.name ))
-	p_approach.extended_data = data
+	#p_approach.extended_data = data
 	p_approach.append_style(Style(styles=[IconStyle(scale=0.4, color="ffffffff")]))
 	p_approach.geometry = LineString( coords )
 
