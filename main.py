@@ -186,7 +186,7 @@ def draw_ship_approach (approach):
 	data.append_data('Time1'	, ship1.get_strf_time(index1) )
 	data.append_data('Time2'	, ship2.get_strf_time(index2) )
 	
-	p_approach = Placemark( str.format('{} - {}' , ship1.name , ship2.name ))
+	p_approach = Placemark( str.format('{}---{}' , ship1.name , ship2.name ))
 	#p_approach.extended_data = data
 	p_approach.append_style(Style(styles=[IconStyle(scale=0.4, color="ffffffff")]))
 	p_approach.geometry = LineString( coords )
@@ -387,7 +387,11 @@ kml_setup()
 ships = []
 
 
-csv_file = open('../AIS_Data.csv')
+filename = "../AIS_Data.csv"
+if len(sys.argv)>1:
+	filename = sys.argv[1]
+
+csv_file = open(filename)
 reader = csv.reader(csv_file, delimiter=',')
 
 unnamed_index = 0
@@ -413,6 +417,7 @@ for row in reader:
 	if name == "":
 		name = "Unnamed_"+str(unnamed_index)
 		unnamed_index += 1
+	name = name.replace(' ', '_')
 
 	position = Position(raw_time, lat, lon)
 	get_ship(ships, name).add_point(position)
