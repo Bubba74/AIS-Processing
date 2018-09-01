@@ -3,7 +3,7 @@ import time	#Timing and ship time time_struct manipulations
 import sys	#For sys.stdout.write continuous printing
 
 #For KML Output
-from fastkml.kml import KML, Document, Folder, Placemark, Schema, SchemaData
+from fastkml.kml import KML, Document, Folder, Placemark, Schema, SchemaData, ExtendedData, Data
 from fastkml import Style, IconStyle, LineStyle
 from pygeoif.geometry import Point, LineString, GeometryCollection
 
@@ -49,6 +49,7 @@ def kml_setup():
 	kml_doc = Document(name="AIS_Output")
 	kml_file.append(kml_doc)
 	
+	'''
 	ship_schema = Schema(id="Ship")
 	ship_schema.append("string", "VesselName")
 	ship_schema.append("string", "Time")
@@ -67,19 +68,24 @@ def kml_setup():
 	approach_schema.append("string", "Time1")
 	approach_schema.append("string", "Time2")
 	
+	#Append schema to kml doc
+	kml_doc.append_schema(ship_schema)
+	kml_doc.append_schema(blip_schema)
+	kml_doc.append_schema(approach_schema)
+
+	'''
+
+
 	paths_folder = Folder(name="Ship Paths")
 	paths_folder.visibility = 0
 	blips_folder = Folder(name="Ship Blips")
 	blips_folder.visibility = 0
 	approaches_folder = Folder(name="Ship Approaches")
 
-	#Append schema to kml doc
-	kml_doc.append_schema(ship_schema)
-	kml_doc.append_schema(blip_schema)
-	kml_doc.append_schema(approach_schema)
 
 	#Append folders to kml doc
 	kml_doc.append(paths_folder)
+	kml_doc.append(blips_folder)
 	kml_doc.append(approaches_folder)
 
 
@@ -94,33 +100,33 @@ def get_random_abgr_color ():
 
 
 def draw_ship_path (ship):
-	color = get_random_abgr_color()
+	abgr = get_random_abgr_color()
 
-	blip_folder = Folder( name=ship.name)
+	blip_folder = Folder( name="Blips: "+ship.name)
 	blip_folder.visibility = 0
-	blips_folder.append(blip_folder)
 
 	# Text box info
-	data = SchemaData (schema_url="#Ship")
-	data.append_data('VesselName'	, ship.name)
-	data.append_data('Time'		, ship.get_strf_time(0))
-	data.append_data('Epoch'	, ship.get_epoch(0))
-	data.append_data('Latitude'	, ship.get_lat(0))
-	data.append_data('Longitude'	, ship.get_lon(0))
+	data = ExtendedData ()
+	data.elements.append( Data(None, 'VesselName'	, ship.name) )
+	data.elements.append( Data(None, 'Time'		, ship.get_strf_time(0)) )
+	data.elements.append( Data(None, 'Epoch'	, str(ship.get_epoch(0))) )
+	data.elements.append( Data(None, 'Latitude'	, str(ship.get_lat(0))) )
+	data.elements.append( Data(None, 'Longitude'	, str(ship.get_lon(0))) )
 
 	# Geometry
-	coords = [( ship.get_lat(i) , ship.get_lon(i) ) for i in range(ship.len())]
+	coords = [( ship.get_lon(i) , ship.get_lat(i) ) for i in range(ship.len())]
 	path_line = LineString(coordinates=coords)
 	start_point = Point(ship.get_lon(0), ship.get_lat(0))
-	geo_combo = GeometryCollection( ([path_line, start_point]) )
+	geo_combo = GeometryCollection( ([start_point , path_line]) )
 
 	# Style
 	icon = IconStyle( scale=0.5, icon_href=BLIP_ICON )
-	style = Style( styles=[icon] )
+	linestyle = LineStyle (color=abgr)
+	style = Style( styles=[icon, linestyle] )
 	
 	path = Placemark(name=ship.name)	# Create placemark
-	path.visibility = 0			# Don't show all paths by default
-	#path.extended_data = data		# Add descriptive data for the ship
+	path.visibility = 1			# Don't show all paths by default
+	path.extended_data = data		# Add descriptive data for the ship
 	path.geometry = geo_combo		# Attach geometry: start point + line path
 	path.append_style(style)		# Decrease size of icon
 
@@ -132,16 +138,18 @@ def draw_ship_path (ship):
 		#Set the color of the icon based on the color of the path
 		#Scale=0.2, icon=BLIP_ICON, color=color
 
-		data = SchemaData (schema_url="#Blip")
-		data.append_data( "Time"	, ship.get_strf_time(i) )
-		data.append_data( "Latitude"	, ship.get_lat(i) )
-		data.append_data( "Longitude"	, ship.get_lon(i) )
+		data = ExtendedData ()
+		data.elements.append( Data(None, "Time"		, ship.get_strf_time(i) ) )
+		data.elements.append( Data(None, "Latitude"	, str(ship.get_lat(i)) ) )
+		data.elements.append( Data(None, "Longitude"	, str(ship.get_lon(i)) ) )
 		
 		blip = Placemark()
-		blip.append_style(Style(styles=[IconStyle(color=color, scale=0.2, icon_href=BLIP_ICON)]))
-		#blip.extended_data = data
+		blip.append_style(Style(styles=[IconStyle(color=abgr, scale=0.2, icon_href=BLIP_ICON)]))
+		blip.geometry = Point( ship.get_lon(i) , ship.get_lat(i) )
+		blip.extended_data = data
 
 		blip_folder.append(blip)
+	blips_folder.append(blip_folder)
 
 def draw_ship_approach (approach):
 	global approaches_folder
@@ -152,48 +160,55 @@ def draw_ship_approach (approach):
 	ship2 = identifier[2]
 	index2 = identifier[3]
 
+	approach_folder = Folder( name=str.format('{} - {}',ship1.name,ship2.name) )
+	approaches_folder.append(approach_folder)
 
 	# --  Marker for first ship -- #
-	data = SchemaData(schema_url="#Ship")
-	data.append_data('VesselName'	, ship1.name)
-	data.append_data('Time' 	, ship1.get_strf_time(index1))
-	data.append_data('Latitude'	, ship1.get_lat(index1))
-	data.append_data('Longitude'	, ship1.get_lon(index1))
+	data = ExtendedData()
+	data.elements.append(Data(None, 'VesselName'	, ship1.name))
+	data.elements.append(Data(None, 'Time' 		, ship1.get_strf_time(index1)))
+	data.elements.append(Data(None, 'Latitude'	, str(ship1.get_lat(index1))))
+	data.elements.append(Data(None, 'Longitude'	, str(ship1.get_lon(index1))))
 	
+	point1 = Point( ship1.get_lon(index1) , ship1.get_lat(index1) )
 	p1 = Placemark(name=ship1.name)
-	#p1.extended_data = data
+	p1.extended_data = data
 	p1.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
+	p1.geometry = point1
 
 	# --  Marker for second ship -- #
-	data = SchemaData(schema_url="#Ship")
-	data.append_data('VesselName'	, ship2.name)
-	data.append_data('Time' 	, ship2.get_strf_time(index2))
-	data.append_data('Latitude'	, ship2.get_lat(index2))
-	data.append_data('Longitude'	, ship2.get_lon(index2))
-
-	p2 = Placemark(ship2.name)
-	#p2.extended_data = data
+	data = ExtendedData()
+	data.elements.append(Data(None, 'VesselName'	, ship2.name))
+	data.elements.append(Data(None, 'Time' 		, ship2.get_strf_time(index2)))
+	data.elements.append(Data(None, 'Latitude'	, str(ship2.get_lat(index2))))
+	data.elements.append(Data(None, 'Longitude'	, str(ship2.get_lon(index2))))
+	
+	point2 = Point( ship2.get_lon(index2) , ship2.get_lat(index2) )
+	p2 = Placemark(name=ship2.name)
+	p2.extended_data = data
 	p2.append_style(Style(styles=[IconStyle(scale=0.3, color="ffffffff")]))
+	p2.geometry = point2
 
 	# --  Marker for third ship -- #
 	#Paired lat/lon coordinates denoting connection between ships
-	coords = [ (ship1.get_lat(index1), ship1.get_lon(index1)) , (ship2.get_lat(index2),ship2.get_lon(index2)) ]
+	coords = [ (ship1.get_lon(index1), ship1.get_lat(index1)) , (ship2.get_lon(index2),ship2.get_lat(index2)) ]
 
-	data = SchemaData(schema_url='#Approach')
-	data.append_data('Distance'	, str.format('{:.2f}nm' , approach[1][0]) )
-	data.append_data('Vessel1'	, ship1.name )
-	data.append_data('Vessel2'	, ship2.name )
-	data.append_data('Time1'	, ship1.get_strf_time(index1) )
-	data.append_data('Time2'	, ship2.get_strf_time(index2) )
-	
-	p_approach = Placemark( str.format('{}---{}' , ship1.name , ship2.name ))
-	#p_approach.extended_data = data
-	p_approach.append_style(Style(styles=[IconStyle(scale=0.4, color="ffffffff")]))
-	p_approach.geometry = LineString( coords )
 
-	approaches_folder.append(p1)
-	approaches_folder.append(p2)
-	approaches_folder.append(p_approach)
+	data = ExtendedData()
+	data.elements.append( Data(None,'Distance'	, str.format('{:.2f}nm' , approach[1][0]) ) )
+	data.elements.append( Data(None,'Vessel1'	, ship1.name ) )
+	data.elements.append( Data(None,'Vessel2'	, ship2.name ) )
+	data.elements.append( Data(None,'Time1'		, ship1.get_strf_time(index1) ) )
+	data.elements.append( Data(None,'Time2'		, ship2.get_strf_time(index2) ) )
+
+	p_approach = Placemark( name=str.format('{}nm', approach[1][0]) )
+	p_approach.extended_data = data
+	p_approach.append_style(Style( styles=[IconStyle(scale=0.4, color="ff0000ff"), LineStyle(width=2)] ))
+	p_approach.geometry = LineString(coords)
+
+	approach_folder.append(p1)
+	approach_folder.append(p2)
+	approach_folder.append(p_approach)
 	
 
 class Position:
@@ -417,7 +432,6 @@ for row in reader:
 	if name == "":
 		name = "Unnamed_"+str(unnamed_index)
 		unnamed_index += 1
-	name = name.replace(' ', '_')
 
 	position = Position(raw_time, lat, lon)
 	get_ship(ships, name).add_point(position)
@@ -449,7 +463,7 @@ for ship in ships:
 	draw_ship_path(ship)
 
 fout = open('AIS_Processing.kml', 'w')
-fout.write(kml_file.to_string())
+fout.write(kml_file.to_string(prettyprint=True))
 fout.close()
 
 
