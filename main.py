@@ -60,6 +60,21 @@ def kml_setup():
 	kml_doc.append(blips_folder)
 	kml_doc.append(approaches_folder)
 
+def load_ship_data ( ship, index=0 ):
+	data = ExtendedData()
+
+	name	= ship.name
+	strf	= ship.get_strf_time(index)
+	epoch	= ship.get_epoch(index)
+	lat	= ship.get_lat(index)
+	lon	= ship.get_lon(index)
+
+	data.elements.append( Data(None, 'VesselName'	, name       ) )
+	data.elements.append( Data(None, 'Time'		, strf       ) )
+	data.elements.append( Data(None, 'Epoch'	, str(epoch) ) )
+	data.elements.append( Data(None, 'Latitude'	, str(lat)   ) )
+	data.elements.append( Data(None, 'Longitude'	, str(lon)   ) )
+	return data
 
 def get_random_abgr_color ():
 	color = "ff"
@@ -74,16 +89,11 @@ def get_random_abgr_color ():
 def draw_ship_path (ship):
 	abgr = get_random_abgr_color()
 
-	blip_folder = Folder( name="Blips: "+ship.name)
+	blip_folder = Folder( name=ship.name)
 	blip_folder.visibility = 0
 
 	# Text box info
-	data = ExtendedData ()
-	data.elements.append( Data(None, 'VesselName'	, ship.name) )
-	data.elements.append( Data(None, 'Time'		, ship.get_strf_time(0)) )
-	data.elements.append( Data(None, 'Epoch'	, str(ship.get_epoch(0))) )
-	data.elements.append( Data(None, 'Latitude'	, str(ship.get_lat(0))) )
-	data.elements.append( Data(None, 'Longitude'	, str(ship.get_lon(0))) )
+	data = load_ship_data ( ship )
 
 	# Geometry
 	coords = [( ship.get_lon(i) , ship.get_lat(i) ) for i in range(ship.len())]
@@ -136,11 +146,7 @@ def draw_ship_approach (approach):
 	approaches_folder.append(approach_folder)
 
 	# --  Marker for first ship -- #
-	data = ExtendedData()
-	data.elements.append(Data(None, 'VesselName'	, ship1.name))
-	data.elements.append(Data(None, 'Time' 		, ship1.get_strf_time(index1)))
-	data.elements.append(Data(None, 'Latitude'	, str(ship1.get_lat(index1))))
-	data.elements.append(Data(None, 'Longitude'	, str(ship1.get_lon(index1))))
+	data = load_ship_data ( ship1, index1 )
 	
 	point1 = Point( ship1.get_lon(index1) , ship1.get_lat(index1) )
 	p1 = Placemark(name=ship1.name)
@@ -149,11 +155,7 @@ def draw_ship_approach (approach):
 	p1.geometry = point1
 
 	# --  Marker for second ship -- #
-	data = ExtendedData()
-	data.elements.append(Data(None, 'VesselName'	, ship2.name))
-	data.elements.append(Data(None, 'Time' 		, ship2.get_strf_time(index2)))
-	data.elements.append(Data(None, 'Latitude'	, str(ship2.get_lat(index2))))
-	data.elements.append(Data(None, 'Longitude'	, str(ship2.get_lon(index2))))
+	data = load_ship_data ( ship2, index2 )
 	
 	point2 = Point( ship2.get_lon(index2) , ship2.get_lat(index2) )
 	p2 = Placemark(name=ship2.name)
