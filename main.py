@@ -3,7 +3,7 @@ import time	#Timing and ship time time_struct manipulations
 import sys	#For sys.stdout.write continuous printing
 
 #For KML Output
-from fastkml.kml import KML, Document, Folder, Placemark, Schema, SchemaData, ExtendedData, Data
+from fastkml.kml import KML, Document, Folder, Placemark, ExtendedData, Data
 from fastkml import Style, IconStyle, LineStyle
 from pygeoif.geometry import Point, LineString, GeometryCollection
 
@@ -49,39 +49,11 @@ def kml_setup():
 	kml_doc = Document(name="AIS_Output")
 	kml_file.append(kml_doc)
 	
-	'''
-	ship_schema = Schema(id="Ship")
-	ship_schema.append("string", "VesselName")
-	ship_schema.append("string", "Time")
-	ship_schema.append("string",  "Latitude")
-	ship_schema.append("string",  "Longitude")
-
-	blip_schema = Schema(id="Blip")
-	blip_schema.append("string", "Time")
-	blip_schema.append("string",  "Latitude")
-	blip_schema.append("string",  "Longitude")
-
-	approach_schema = Schema(id="Approach")
-	approach_schema.append("string", "Distance")
-	approach_schema.append("string", "Vessel1")
-	approach_schema.append("string", "Vessel2")
-	approach_schema.append("string", "Time1")
-	approach_schema.append("string", "Time2")
-	
-	#Append schema to kml doc
-	kml_doc.append_schema(ship_schema)
-	kml_doc.append_schema(blip_schema)
-	kml_doc.append_schema(approach_schema)
-
-	'''
-
-
 	paths_folder = Folder(name="Ship Paths")
 	paths_folder.visibility = 0
 	blips_folder = Folder(name="Ship Blips")
 	blips_folder.visibility = 0
 	approaches_folder = Folder(name="Ship Approaches")
-
 
 	#Append folders to kml doc
 	kml_doc.append(paths_folder)
