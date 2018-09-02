@@ -376,11 +376,18 @@ kml_setup()
 ships = []
 
 
-filename = "../AIS_Data.csv"
 if len(sys.argv)>1:
 	filename = sys.argv[1]
+	csv_file = open(filename)
+else:
+	try:
+		filename = './ais_input.csv'
+		csv_file = open(filename)
+	except IOError:
+		filename = "../AIS_Data.csv"
+		csv_file = open(filename)
+print "Reading input AIS data from: "+filename
 
-csv_file = open(filename)
 reader = csv.reader(csv_file, delimiter=',')
 
 unnamed_index = 0
