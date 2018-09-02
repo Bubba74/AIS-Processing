@@ -1,4 +1,3 @@
-import csv	#For parsing AIS.csv input
 import time	#Timing and ship time time_struct manipulations
 import sys	#For sys.stdout.write continuous printing
 
@@ -388,31 +387,21 @@ else:
 		csv_file = open(filename)
 print "Reading input AIS data from: "+filename
 
-reader = csv.reader(csv_file, delimiter=',')
-
 unnamed_index = 0
 
 time_start = time.time()
 index = 0
 block_size = 100
-for row in reader:
+for line in csv_file:
+	row = line.split(',')
 	if index == 0:
 		index += 1
 		continue
 
-	#Disregard stationary points
-	status = row[11]
-	if status == "at anchor":
-		continue
-
-	name = row[7]
-	raw_time = row[1]
+	name = row[1]
+	raw_time = row[0]
 	lat = row[2]
 	lon = row[3]
-
-	if name == "":
-		name = "Unnamed_"+str(unnamed_index)
-		unnamed_index += 1
 
 	position = Position(raw_time, lat, lon)
 	get_ship(ships, name).add_point(position)
