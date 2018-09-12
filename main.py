@@ -9,6 +9,7 @@ from pygeoif.geometry import Point, LineString, GeometryCollection
 import random	#For creating unique colors for ship paths
 import math	#Lat/lon distance calculations for ships
 
+from util.Logging import log, flush
 
 
 EARTH_RADIUS 	= 6.371e6	#meters
@@ -17,6 +18,7 @@ MAX_BOAT_SPEED	= 100.0 / 3600  #slightly slower
 
 BLIP_ICON = "https://cdn4.iconfinder.com/data/icons/6x16-free-application-icons/16/Target.png"
 #BLIP_ICON = "http://asset-a.soupcdn.com/asset/0897/8622_a476_32-square.png"
+
 
 def parseTime(raw_csv_time):
 	try:
@@ -29,11 +31,11 @@ def parseTime(raw_csv_time):
 		#   print str.format("Year: {} Month: {} Day: {}  {}:{}:{}", year, month, day, hour, minute, second)
 		return time.struct_time((year, month, day, hour, minute, second, 1, 1, -1)) #Returns a generic time struct
 	except Exception as e:
-		print e
-		print "Errored trying to parse time: "+raw_csv_time
+		log(e)
+		log("Errored trying to parse time: "+raw_csv_time)
 
 def print_progress(time_start, index):
-	print str.format("Read through {} rows in {} seconds",index,time.time()-time_start)
+	log("Read through {} rows in {} seconds".format(index,time.time()-time_start))
 
 def pretty_time (gm_time):
 	return time.strftime("%Y-%m-%d %H:%M:%S", gm_time)
@@ -141,7 +143,7 @@ def draw_ship_approach (approach):
 	ship2 = identifier[2]
 	index2 = identifier[3]
 
-	approach_folder = Folder( name=str.format('{} - {}',ship1.name,ship2.name) )
+	approach_folder = Folder( name='{} - {}'.format(ship1.name,ship2.name) )
 	approaches_folder.append(approach_folder)
 
 	# --  Marker for first ship -- #
@@ -168,13 +170,13 @@ def draw_ship_approach (approach):
 
 
 	data = ExtendedData()
-	data.elements.append( Data(None,'Distance'	, str.format('{:.2f}nm' , approach[1][0]) ) )
+	data.elements.append( Data(None,'Distance'	, '{:.2f}nm'.format(approach[1][0]) ) )
 	data.elements.append( Data(None,'Vessel1'	, ship1.name ) )
 	data.elements.append( Data(None,'Vessel2'	, ship2.name ) )
 	data.elements.append( Data(None,'Time1'		, ship1.get_strf_time(index1) ) )
 	data.elements.append( Data(None,'Time2'		, ship2.get_strf_time(index2) ) )
 
-	p_approach = Placemark( name=str.format('{}nm', approach[1][0]) )
+	p_approach = Placemark( name='{}nm'.format(approach[1][0]) )
 	p_approach.extended_data = data
 	p_approach.append_style(Style( styles=[IconStyle(scale=0.4, color="ff0000ff"), LineStyle(width=2)] ))
 	p_approach.geometry = LineString(coords)
@@ -279,8 +281,8 @@ def compare_ships(ship1, ship2):
 	index1 = 0
 	index2 = 0
 	
-	sys.stdout.write("Comparing ships " + ship1.name + " and " + ship2.name)
-	sys.stdout.flush()
+	log("Comparing ships " + ship1.name + " and " + ship2.name)
+	flush()
 	#print ship1
 	#print ship2
 	
@@ -298,13 +300,13 @@ def compare_ships(ship1, ship2):
 				
 				debug = False
 				if debug:
-					print "      Ship1 Time                        Ship2 Time"
+					log("      Ship1 Time                        Ship2 Time")
 					for i in range(-30,30):
 						try:
-							print str(index1+i)+": "+ship1.get_strf_time(index1+i)  +  "\t"+str(index2+i)+": "+ship2.get_strf_time(index2+i)
+							log(str(index1+i)+": "+ship1.get_strf_time(index1+i)  +  "\t"+str(index2+i)+": "+ship2.get_strf_time(index2+i))
 						except IndexOutOfBoundsException as e:
-							print e
-							print "Seek back-forward extends beyond array bounds"
+							log(e)
+							log("Seek back-forward extends beyond array bounds")
 				break
 			else:
 				if epoch1 < epoch2:
@@ -361,11 +363,11 @@ def compare_ships(ship1, ship2):
 				break
 
 	end_time = time.time() # Stop clock on comparing ships
-	print str.format("	 {:.2f} seconds", end_time-start_time)
-			
+	log("	 {:.2f} seconds".format(end_time-start_time))
+
 	for approach in approaches:
-		print str.format( "-------Approach between {}:{} and {}:{}", approach[0][0].name, approach[0][1], approach[0][2].name, approach[0][3] )
-		print str.format( "({},{}) and ({},{}) == {:.2f}nm", approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] )
+		log("-------Approach between {}:{} and {}:{}".format(approach[0][0].name, approach[0][1], approach[0][2].name, approach[0][3] ))
+		log("({},{}) and ({},{}) == {:.2f}nm".format(approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] ))
 		draw_ship_approach(approach)
 			
 
@@ -385,45 +387,58 @@ else:
 	except IOError:
 		filename = "../AIS_Data.csv"
 		csv_file = open(filename)
-print "Reading input AIS data from: "+filename
+log("Reading input AIS data from: "+filename)
 
 unnamed_index = 0
 
-time_start = time.time()
-index = 0
-block_size = 100
-for line in csv_file:
-	row = line.split(',')
-	if index == 0:
+try:
+	time_start = time.time()
+	index = 0
+	block_size = 100
+	for line in csv_file:
+		row = line.split(',')
+		if index == 0:
+			index += 1
+			continue
+	
+		name = row[1]
+		raw_time = row[0]
+		lat = row[2]
+		lon = row[3]
+	
+		position = Position(raw_time, lat, lon)
+		get_ship(ships, name).add_point(position)
+	
 		index += 1
-		continue
-
-	name = row[1]
-	raw_time = row[0]
-	lat = row[2]
-	lon = row[3]
-
-	position = Position(raw_time, lat, lon)
-	get_ship(ships, name).add_point(position)
-
-	index += 1
-	if index % block_size == 0:
-		print_progress(time_start, index)
-		if index // block_size >= 10:
-			block_size *= 10
+		if index % block_size == 0:
+			print_progress(time_start, index)
+			if index // block_size >= 10:
+				block_size *= 10
+except KeyboardInterrupt as e:
+	log(e)
+	log("Continue with parsed data? Y/n")
+	flush()
+	
+	if raw_input() != 'Y':
+		csv_file.close()
+		log_close()
+		sys.exit()
+	else:
+		log("Continuing with first {} lines.".format(index))
+		flush()
+		
+	
 csv_file.close() # Free data file resources
 
 print_progress(time_start, index)
 
 for ship in ships:
-	print ship
-	print
+	log(str(ship)+"\n")
 
 shipc = len(ships)
 pathc = sum([ships[i].len() for i in range(len(ships))])
 
-print str.format("{} vessels : {} markers", shipc, pathc)
-print "\n"
+log("{} vessels : {} markers\n".format(shipc, pathc))
 
 for i in range(len(ships)):
 	for j in range(i+1, len(ships)):
@@ -437,4 +452,5 @@ fout.write(kml_file.to_string(prettyprint=True))
 fout.close()
 
 
-print str.format("Program finished in {:.2f} seconds.", time.time()-time_start)
+log("Program finished in {:.2f} seconds.".format(time.time()-time_start))
+flush()
