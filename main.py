@@ -258,15 +258,14 @@ class ShipPath:
 
 
 def get_ship(ships, name):
-	shipc = len(ships)
-	#for i in range(shipc):
-		#if ships[i].name == name:
-			#return i
-	for ship in ships:
+	hash = ord(name[0].lower())-97 # 97: ord('a')
+	if hash < 0 or hash > 25:
+		hash = 25 #Assign out of range hash values to 'z'
+	for ship in ships[hash]:
 		if ship.name == name:
 			return ship
 	new_ship = ShipPath(name)
-	ships.append(new_ship)
+	ships[hash].append(new_ship)
 	#return shipc
 	return new_ship
 
@@ -368,73 +367,106 @@ def compare_ships(ship1, ship2):
 		print str.format( "({},{}) and ({},{}) == {:.2f}nm", approach[1][1], approach[1][2], approach[1][3], approach[1][4], approach[1][0] )
 		draw_ship_approach(approach)
 			
+if len(sys.argv)>1:
+	filename = sys.argv[1]
+else:
+	try:
+		filename = './ais_input.csv'
+	except IOError:
+		filename = "../AIS_Data.csv"
+
+print "Reading input AIS data from: "+filename
+if filename[-4:] == '.zip':
+	import zipfile
+	zip_file = zipfile.ZipFile(filename)
+	first_file = zip_file.infolist()[0].filename
+	print "File is a zip file, reading from first entry: "+first_file
+	csv_file = zip_file.open(first_file)
+else:
+	csv_file = open(filename)
 
 #Setup KML output
 kml_setup()
 
-ships = []
+ships = [ [] for x in range(26)]
+draw_ship_paths = False
 
-
-if len(sys.argv)>1:
-	filename = sys.argv[1]
-	csv_file = open(filename)
-else:
-	try:
-		filename = './ais_input.csv'
-		csv_file = open(filename)
-	except IOError:
-		filename = "../AIS_Data.csv"
-		csv_file = open(filename)
-print "Reading input AIS data from: "+filename
-
-unnamed_index = 0
+unmoving_ships = 0
+unnamed_ships = 0
 
 time_start = time.time()
 index = 0
 block_size = 100
 for line in csv_file:
 	row = line.split(',')
+
+	#Skip header row
 	if index == 0:
 		index += 1
 		continue
-
-	name = row[1]
-	raw_time = row[0]
-	lat = row[2]
-	lon = row[3]
-
-	position = Position(raw_time, lat, lon)
-	get_ship(ships, name).add_point(position)
 
 	index += 1
 	if index % block_size == 0:
 		print_progress(time_start, index)
 		if index // block_size >= 10:
 			block_size *= 10
+
+	status = row[11]
+	if status == 'at anchor':
+		unmoving_ships += 1
+		continue
+	name = row[7]
+	if name == '':
+		unnamed_ships += 1
+		continue
+	raw_time = row[1]
+	lat = row[2]
+	lon = row[3]
+
+	position = Position(raw_time, lat, lon)
+	get_ship(ships, name).add_point(position)
+
 csv_file.close() # Free data file resources
+if filename[-4:0] == '.zip':
+	zip_file.close()
 
 print_progress(time_start, index)
 
-for ship in ships:
-	print ship
-	print
-
-shipc = len(ships)
-pathc = sum([ships[i].len() for i in range(len(ships))])
-
-print str.format("{} vessels : {} markers", shipc, pathc)
+#Print # of ships and # of data points
+shipc = sum([len(lst) for lst in ships])
+pathc = sum([ sum([ship.len() for ship in lst]) for lst in ships])
+print "{} vessels : {} markers".format(shipc, pathc)
+print "{} ship points at anchor. {} unnamed ship points.".format(unmoving_ships, unnamed_ships)
 print "\n"
 
+for bucket in ships:
+	for ship in bucket:
+		print ship
+		print
+
+#Print # of ships and # of data points
+#shipc = len(ships)
+shipc = sum([len(lst) for lst in ships])
+pathc = sum([ sum([ship.len() for ship in lst]) for lst in ships])
+#pathc = sum([ships[i].len() for i in range(len(ships))])
+print str.format("{} vessels : {} markers", shipc, pathc)
+print "{} ship points at anchor. {} unnamed ship points.".format(unmoving_ships, unnamed_ships)
+print "\n"
+
+#Compare each ship to each ship below it
+'''
 for i in range(len(ships)):
 	for j in range(i+1, len(ships)):
 		compare_ships(ships[i],ships[j])
+'''
 
-for ship in ships:
-	draw_ship_path(ship)
+#Add ship paths to kml file
+if draw_ship_paths:
+	for ship in ships:
+		draw_ship_path(ship)
 
 fout = open('AIS_Processing.kml', 'w')
 fout.write(kml_file.to_string(prettyprint=True))
 fout.close()
-
 
 print str.format("Program finished in {:.2f} seconds.", time.time()-time_start)
