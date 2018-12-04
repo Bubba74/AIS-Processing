@@ -192,7 +192,13 @@ class Position:
 	def __str__(self):
 		return str.format("Pos {} {} {}", pretty_time(self.time), self.lat, self.lon)
 
+
 class ShipPath:
+	jump_sec_count = 0
+	jump_sec_time = 0
+	jump_sec_indices = 0
+	distance_count = 0
+
 	def __init__(self, ship_name):
 		self.name = ship_name 	#VesselName
 		self.path = [] 		#List of Position points
@@ -202,8 +208,9 @@ class ShipPath:
 		txt += "End:   " + str(self.path[-1])+"\n"
 		return txt
 	def add_point(self, position):
+		position.epoch = time.mktime(position.time)
 		for i in range(len(self.path)-1,-1,-1):	#Count backward
-			if self.path[i].time < position.time:
+			if self.path[i].epoch < position.epoch:
 				self.path.insert(i+1, position)
 				return
 		self.path.insert(0, position)
@@ -222,7 +229,7 @@ class ShipPath:
 	def get_time(self, index):
 		return self.path[index].time
 	def get_epoch(self, index):
-		return time.mktime(self.get_time(index))
+		return self.path[index].epoch
 	def get_strf_time(self, index):
 		return pretty_time(self.path[index].time)
 
@@ -231,18 +238,28 @@ class ShipPath:
 		if index+1 >= self.len():
 			return self.len()-1
 
+		index_start = index
+		time_start = time.time()
+
 		start = self.get_epoch(index)
 		while self.get_epoch(index+1) - start < seconds:
 			index += 1
 			if index == self.len()-1:
 				break
+
+		ShipPath.jump_sec_count += 1
+		ShipPath.jump_sec_time += (time.time() - time_start) #Add time spent jumping forward
+		ShipPath.jump_sec_indices += index - index_start
 		return index
 
 	def distance_nm(self, index1, ship2, index2, speed=False):
+		ShipPath.distance_count += 1
+
 		lat1 = math.radians(self.get_lat(index1))
 		lon1 = math.radians(self.get_lon(index1))
 		lat2 = math.radians(ship2.get_lat(index2))
 		lon2 = math.radians(ship2.get_lon(index2))
+
 		if speed:
 			#Equirectangular Approximation
         		x = (lon2-lon1) * math.cos((lat1+lat2)/2)
@@ -270,8 +287,11 @@ def get_ship(ships, name):
 	return new_ship
 
 
+jump_count = 0
+jump_time  = 0
 
 def compare_ships(ship1, ship2):
+	global jump_count, jump_time
 	approaches = []
 
 	#Start with first ship at first position
@@ -285,8 +305,9 @@ def compare_ships(ship1, ship2):
 	
 	start_time = time.time() # Start clock on comparing ships
 	while index1 < ship1.len() and index2 < ship2.len():
-		proximity = 3000
+		proximity = 5 * 60 # 50 min * 60 sec/min
 		#Seek until ship timestamps are within 5 minute
+		jump_start = time.time()
 		while True:
 			epoch1 = ship1.get_epoch(index1)
 			epoch2 = ship2.get_epoch(index2)
@@ -316,6 +337,9 @@ def compare_ships(ship1, ship2):
 				break
 			if index2 >= ship2.len():
 				break
+
+		jump_count += 1
+		jump_time += (time.time() - jump_start)
 
 		if index1 >= ship1.len() or index2 >= ship2.len():
 			break
@@ -453,9 +477,10 @@ print "\n"
 for i in range(len(buckets)): #In each bucket
 	for j in range(len(buckets[i])): #Look at the ship
 		for i1 in range(i, len(buckets)): #Loop over the remaining buckets
-			for j1 in range(len(buckets[i1])): #And all the ships in those
-				if i1 == i and j1 <= j: #If the target ship exists before the src ship, skip
-					continue
+			start = 0
+			if i1 == i:
+				start = j + 1
+			for j1 in range(start, len(buckets[i1])): #And all the ships in those
 				compare_ships(buckets[i][j], buckets[i1][j1])
 
 #Add ship paths to kml file
@@ -468,4 +493,12 @@ fout = open('AIS_Processing.kml', 'w')
 fout.write(kml_file.to_string(prettyprint=True))
 fout.close()
 
-print str.format("Program finished in {:.2f} seconds.", time.time()-time_start)
+print "\n\nProgram finished in {:.2f} seconds.".format(time.time()-time_start)
+
+#Print # of ships and # of data points
+print str.format("{} vessels : {} markers", shipc, pathc)
+print "{} ship points at anchor. {} unnamed ship points.\n".format(unmoving_ships, unnamed_ships)
+
+print "Called distance_nm {} times".format(ShipPath.distance_count)
+print "Over {} calls, ships jumped {} indices in {} seconds.".format(ShipPath.jump_sec_count, ShipPath.jump_sec_indices, ShipPath.jump_sec_time)
+print "When comparing ships, it took {} seconds to jump to near times {} times.".format(jump_time, jump_count)
