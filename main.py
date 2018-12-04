@@ -388,7 +388,7 @@ else:
 #Setup KML output
 kml_setup()
 
-ships = [ [] for x in range(26)]
+buckets = [ [] for x in range(26)]
 draw_ship_paths = False
 
 unmoving_ships = 0
@@ -424,7 +424,7 @@ for line in csv_file:
 	lon = row[3]
 
 	position = Position(raw_time, lat, lon)
-	get_ship(ships, name).add_point(position)
+	get_ship(buckets, name).add_point(position)
 
 csv_file.close() # Free data file resources
 if filename[-4:0] == '.zip':
@@ -433,37 +433,36 @@ if filename[-4:0] == '.zip':
 print_progress(time_start, index)
 
 #Print # of ships and # of data points
-shipc = sum([len(lst) for lst in ships])
-pathc = sum([ sum([ship.len() for ship in lst]) for lst in ships])
+shipc = sum([len(bucket) for bucket in buckets])
+pathc = sum([ sum([ship.len() for ship in bucket]) for bucket in buckets])
 print "{} vessels : {} markers".format(shipc, pathc)
 print "{} ship points at anchor. {} unnamed ship points.".format(unmoving_ships, unnamed_ships)
 print "\n"
 
-for bucket in ships:
+for bucket in buckets:
 	for ship in bucket:
 		print ship
 		print
 
 #Print # of ships and # of data points
-#shipc = len(ships)
-shipc = sum([len(lst) for lst in ships])
-pathc = sum([ sum([ship.len() for ship in lst]) for lst in ships])
-#pathc = sum([ships[i].len() for i in range(len(ships))])
 print str.format("{} vessels : {} markers", shipc, pathc)
 print "{} ship points at anchor. {} unnamed ship points.".format(unmoving_ships, unnamed_ships)
 print "\n"
 
 #Compare each ship to each ship below it
-'''
-for i in range(len(ships)):
-	for j in range(i+1, len(ships)):
-		compare_ships(ships[i],ships[j])
-'''
+for i in range(len(buckets)): #In each bucket
+	for j in range(len(buckets[i])): #Look at the ship
+		for i1 in range(i, len(buckets)): #Loop over the remaining buckets
+			for j1 in range(len(buckets[i1])): #And all the ships in those
+				if i1 == i and j1 <= j: #If the target ship exists before the src ship, skip
+					continue
+				compare_ships(buckets[i][j], buckets[i1][j1])
 
 #Add ship paths to kml file
 if draw_ship_paths:
-	for ship in ships:
-		draw_ship_path(ship)
+	for bucket in buckets:
+		for ship in bucket:
+			draw_ship_path(ship)
 
 fout = open('AIS_Processing.kml', 'w')
 fout.write(kml_file.to_string(prettyprint=True))
