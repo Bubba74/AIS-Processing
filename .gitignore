@@ -9,3 +9,5 @@ ais_input.csv
 vesselnames.txt
 testNumpy.py
 slimmed_ais_input.csv
+cache_epoch.log
+zone2.zip
